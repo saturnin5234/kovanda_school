@@ -159,10 +159,10 @@
   <div class="setup-card">
     <h2>Rychlost</h2>
     <div class="speed-btns">
+      <button class="speed-btn" data-speed="static">Statická</button>
       <button class="speed-btn" data-speed="20">Pomalá</button>
       <button class="speed-btn on" data-speed="35">Střední</button>
-      <button class="speed-btn" data-speed="55">Rychlá</button>
-      <button class="speed-btn" data-speed="80">Velmi rychlá</button>
+      <button class="speed-btn" data-speed="65">Rychlá</button>
     </div>
   </div>
 
@@ -303,6 +303,7 @@ const STAFF_MAP={};
 // ═══════════════════════════════════════
 let activePositions = new Set([1]);
 let chosenSpeed = 35;
+let isStaticMode = false;
 const chosenDuration = 45;
 let bestScore = parseInt(localStorage.getItem('cello_best')||'0');
 
@@ -410,7 +411,9 @@ function dotsHtml(indices){
   document.querySelectorAll('.speed-btn').forEach(b=>{
     b.addEventListener('click',()=>{
       document.querySelectorAll('.speed-btn').forEach(x=>x.classList.remove('on'));
-      b.classList.add('on'); chosenSpeed=parseInt(b.dataset.speed);
+      b.classList.add('on');
+      isStaticMode = b.dataset.speed === 'static';
+      if(!isStaticMode) chosenSpeed=parseInt(b.dataset.speed);
     });
   });
   document.getElementById('play-btn').addEventListener('click', startGame);
@@ -478,6 +481,12 @@ const LINE_GAP_G  = 10;
 const BOTTOM_LINE_G = 92;
 const LEFT_MARGIN = 64;
 const LINE_X      = LEFT_MARGIN + 34;
+const STATIC_QUEUE = 4; // upcoming notes shown after the pending one in Statická mode
+
+function staticSlotX(i){
+  const gap = Math.min(80, Math.max(52, (canvas.width - LINE_X - 30) / STATIC_QUEUE));
+  return LINE_X + i*gap;
+}
 
 let gameRunning   = false;
 let gameNotes     = [];
@@ -500,11 +509,11 @@ function gameResizeCanvas(){
   canvas.width = canvas.parentElement.clientWidth || 520;
 }
 
-function spawnNote(){
+function spawnNote(x){
   const pool = cardsForActive();
   const card = pool[Math.floor(Math.random()*pool.length)];
   const info = STAFF_MAP[card.midi]; if(!info) return null;
-  return { card, step:info.step, acc:info.acc, x:canvas.width+20, state:'active', bounceT:0, fadeAlpha:1 };
+  return { card, step:info.step, acc:info.acc, x:x!==undefined?x:canvas.width+20, state:'active', bounceT:0, fadeAlpha:1 };
 }
 
 function spawnParticle(x, y, points, good){
@@ -634,6 +643,11 @@ function startGame(){
   gameNotes=[]; gameParticles=[]; pendingNote=null;
   gScore=0; gTotal=0; gCorrect=0; gStreak=0;
   timeLeft=chosenDuration; totalDuration=chosenDuration;
+  if(isStaticMode){
+    for(let i=0;i<=STATIC_QUEUE;i++){
+      const n=spawnNote(staticSlotX(i)); if(n){ n.targetX=n.x; gameNotes.push(n); }
+    }
+  }
   updateGameUI();
   gameRunning=true;
   gameLastTime=performance.now();
@@ -686,25 +700,31 @@ function gameLoop(ts){
 
   // Move notes
   gameNotes.forEach(n=>{
-    if(n.state==='active'||n.state==='correct'||n.state==='wrong') n.x -= chosenSpeed*(dt/1000);
+    if(!isStaticMode&&(n.state==='active'||n.state==='correct'||n.state==='wrong')) n.x -= chosenSpeed*(dt/1000);
+    if(isStaticMode&&n.targetX!==undefined&&n.x!==n.targetX){
+      n.x += (n.targetX-n.x)*Math.min(1,dt/150);
+      if(Math.abs(n.targetX-n.x)<0.4) n.x=n.targetX;
+    }
     if(n.bounceT>0&&n.bounceT<1) n.bounceT=Math.min(1,n.bounceT+dt/300);
-    if((n.state==='correct'||n.state==='wrong')&&n.x<LINE_X+60)
+    if(!isStaticMode&&(n.state==='correct'||n.state==='wrong')&&n.x<LINE_X+60)
       n.fadeAlpha=Math.max(0,(n.x-(LINE_X-20))/80);
   });
 
   // Pending note = leftmost active not past line
   pendingNote=gameNotes.filter(n=>n.state==='active'&&n.x>=LINE_X).sort((a,b)=>a.x-b.x)[0]||null;
 
-  // Miss
-  gameNotes.forEach(n=>{
-    if(n.state==='active'&&n.x<LINE_X){
-      n.state='missed';
-      playWrongSfx();
-      spawnParticle(LINE_X,stepToY(n.step)-18,5,false);
-      gScore=Math.max(0,gScore-5); gTotal++; gStreak=0;
-      setTimeout(()=>n.state='gone',400);
-    }
-  });
+  if(!isStaticMode){
+    // Miss
+    gameNotes.forEach(n=>{
+      if(n.state==='active'&&n.x<LINE_X){
+        n.state='missed';
+        playWrongSfx();
+        spawnParticle(LINE_X,stepToY(n.step)-18,5,false);
+        gScore=Math.max(0,gScore-5); gTotal++; gStreak=0;
+        setTimeout(()=>n.state='gone',400);
+      }
+    });
+  }
 
   // Remove gone
   gameNotes=gameNotes.filter(n=>n.state!=='gone');
@@ -713,11 +733,13 @@ function gameLoop(ts){
   gameParticles.forEach(p=>{ p.y+=p.vy*(dt/1000); p.vy*=0.92; p.alpha=Math.max(0,p.alpha-dt/800); });
   gameParticles=gameParticles.filter(p=>p.alpha>0);
 
-  // Spawn notes
-  const active=gameNotes.filter(n=>n.state==='active'||n.state==='correct'||n.state==='wrong');
-  const rightmost=active.length?Math.max(...active.map(n=>n.x)):0;
-  if(active.length<6&&(active.length===0||rightmost<canvas.width-canvas.width*0.18)){
-    const n=spawnNote(); if(n) gameNotes.push(n);
+  if(!isStaticMode){
+    // Spawn notes
+    const active=gameNotes.filter(n=>n.state==='active'||n.state==='correct'||n.state==='wrong');
+    const rightmost=active.length?Math.max(...active.map(n=>n.x)):0;
+    if(active.length<6&&(active.length===0||rightmost<canvas.width-canvas.width*0.18)){
+      const n=spawnNote(); if(n) gameNotes.push(n);
+    }
   }
 
   updateGameUI();
@@ -844,7 +866,18 @@ function gameAnswer(finger){
     if(f===finger){ b.classList.add(ok?'flash-ok':'flash-bad'); setTimeout(()=>b.classList.remove('flash-ok','flash-bad'),280); }
   });
 
-  n._rc=setInterval(()=>{ if(n.x<LINE_X-20){ n.state='gone'; clearInterval(n._rc); } },50);
+  if(isStaticMode){
+    setTimeout(()=>{
+      if(!gameRunning) return;
+      n.state='gone';
+      gameNotes=gameNotes.filter(x=>x!==n);
+      const remaining=gameNotes.filter(x=>x.state==='active').sort((a,b)=>a.x-b.x);
+      remaining.forEach((note,idx)=>{ note.targetX=staticSlotX(idx); });
+      const next=spawnNote(staticSlotX(STATIC_QUEUE)); if(next){ next.targetX=next.x; gameNotes.push(next); }
+    },500);
+  } else {
+    n._rc=setInterval(()=>{ if(n.x<LINE_X-20){ n.state='gone'; clearInterval(n._rc); } },50);
+  }
 }
 
 // Keyboard
