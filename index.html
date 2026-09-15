@@ -152,7 +152,7 @@
   <h1 class="home-title">🎻 Kovanda School<br><span style="font-size:0.7em;font-weight:400;opacity:0.7">The Game</span></h1>
 
   <div class="setup-card">
-    <h2>Obtížnost</h2>
+    <h2>Poloha</h2>
     <div class="diff-header">
       <div class="diff-col-label">Jen tato poloha</div>
       <div class="diff-col-label">Tato + nižší</div>
@@ -406,7 +406,7 @@ let selectedDiff = { row:0, col:1 };
 function setDiffPreset(row, col){
   selectedDiff = { row, col };
   activePositions = new Set(col===0 ? DIFF_ROWS[row].solo : DIFF_ROWS[row].cumul);
-  document.querySelectorAll('.diff-item').forEach(el=>
+  document.querySelectorAll('#diff-grid .diff-item').forEach(el=>
     el.classList.toggle('on', el.dataset.row==row && el.dataset.col==col)
   );
 }
@@ -522,7 +522,7 @@ function resolveCurrentKey(){
   document.getElementById('modal-ok').addEventListener('click',()=>{
     activePositions = new Set(modalTemp);
     selectedDiff = null;
-    document.querySelectorAll('.diff-item').forEach(el=>el.classList.remove('on'));
+    document.querySelectorAll('#diff-grid .diff-item').forEach(el=>el.classList.remove('on'));
     document.getElementById('modal-overlay').classList.remove('open');
   });
 
