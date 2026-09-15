@@ -39,6 +39,11 @@
   .diff-custom-btn { font-size:11px; color:#4A90D9; background:none; border:none; cursor:pointer; font-family:'Source Sans 3',sans-serif; padding:0; margin-top:.5rem; text-align:right; display:block; width:100%; }
   .diff-custom-btn:hover { color:#7db8f0; }
 
+  /* Key (tónina) selector - three columns: sharp / flat / cumulative */
+  .key-header { display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; margin-bottom:6px; padding:0 2px; }
+  .key-grid   { display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; }
+  .key-badge  { font-size:10px; font-weight:700; padding:1px 7px; border-radius:8px; background:#2c2c2a; color:#9a9690; letter-spacing:.02em; white-space:nowrap; }
+
   /* Custom modal */
   .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.7); display:flex; align-items:center; justify-content:center; z-index:200; opacity:0; pointer-events:none; transition:opacity .2s; }
   .modal-overlay.open { opacity:1; pointer-events:all; }
@@ -157,6 +162,17 @@
   </div>
 
   <div class="setup-card">
+    <h2>Tónina</h2>
+    <div class="key-header">
+      <div class="diff-col-label">Křížková</div>
+      <div class="diff-col-label">Béčková</div>
+      <div class="diff-col-label">Obě strany a méně</div>
+    </div>
+    <div class="key-grid" id="key-grid"></div>
+    <button class="diff-custom-btn" id="custom-key-btn">⚙ Vlastní výběr tónin…</button>
+  </div>
+
+  <div class="setup-card">
     <h2>Rychlost</h2>
     <div class="speed-btns">
       <button class="speed-btn" data-speed="static">Statická</button>
@@ -190,6 +206,18 @@
   </div>
 </div>
 
+<!-- CUSTOM KEYS MODAL -->
+<div class="modal-overlay" id="modal-overlay-keys">
+  <div class="modal">
+    <h3>Vlastní výběr tónin</h3>
+    <div class="modal-pos-grid" id="modal-key-grid"></div>
+    <div class="modal-btns">
+      <button class="modal-cancel" id="modal-key-cancel">Zrušit</button>
+      <button class="modal-ok" id="modal-key-ok">Potvrdit</button>
+    </div>
+  </div>
+</div>
+
 <!-- GAME SCREEN -->
 <div class="screen" id="screen-game">
   <img src="cello.png" alt="Cello" style="display:block; width:80%; max-width:300px; margin:0 auto 0.8rem; mix-blend-mode:lighten; background:#1a1814;">
@@ -214,9 +242,12 @@
     </div>
   </div>
 
-  <div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:0.6rem;">
-    <button id="mute-music-btn" onclick="toggleMusic()" style="background:none; border:1px solid #3a3734; border-radius:8px; color:#888580; font-size:12px; padding:4px 10px; cursor:pointer; font-family:'Source Sans 3',sans-serif;">🎵 Hudba</button>
-    <button id="mute-sfx-btn" onclick="toggleSfx()" style="background:none; border:1px solid #3a3734; border-radius:8px; color:#888580; font-size:12px; padding:4px 10px; cursor:pointer; font-family:'Source Sans 3',sans-serif;">🔔 Zvuky</button>
+  <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:0.6rem;">
+    <div id="g-key-label" style="font-size:12px; color:#888580;"></div>
+    <div style="display:flex; gap:8px;">
+      <button id="mute-music-btn" onclick="toggleMusic()" style="background:none; border:1px solid #3a3734; border-radius:8px; color:#888580; font-size:12px; padding:4px 10px; cursor:pointer; font-family:'Source Sans 3',sans-serif;">🎵 Hudba</button>
+      <button id="mute-sfx-btn" onclick="toggleSfx()" style="background:none; border:1px solid #3a3734; border-radius:8px; color:#888580; font-size:12px; padding:4px 10px; cursor:pointer; font-family:'Source Sans 3',sans-serif;">🔔 Zvuky</button>
+    </div>
   </div>
 
   <div class="game-canvas-wrap">
@@ -283,25 +314,71 @@ function buildAllCards(){
 }
 const ALL_CARDS=buildAllCards();
 
-const STAFF_MAP={};
-(function(){
-  const n=[
-    {midi:36,step:-4},{midi:38,step:-3},{midi:40,step:-2},{midi:41,step:-1},
-    {midi:43,step:0},{midi:45,step:1},{midi:47,step:2},
-    {midi:48,step:3},{midi:50,step:4},{midi:52,step:5},{midi:53,step:6},
-    {midi:55,step:7},{midi:57,step:8},{midi:59,step:9},
-    {midi:60,step:10},{midi:62,step:11},{midi:64,step:12},{midi:65,step:13},{midi:67,step:14},
-  ];
-  n.forEach(({midi,step})=>{
-    STAFF_MAP[midi]={step,acc:0};
-    if(!STAFF_MAP[midi+1])STAFF_MAP[midi+1]={step,acc:1};
+// Letter-based staff geometry, replacing the old chromatic STAFF_MAP lookup.
+// naturalMidi/naturalStep generalize the previous hardcoded 19-row table
+// (oct=2 anchored on OPEN_MIDI.C=36) - verified to reproduce it exactly.
+// 'B' is used throughout internally for the note the Czech notation calls 'H'.
+const LETTER_PC          = {C:0,D:2,E:4,F:5,G:7,A:9,B:11};
+const LETTER_STEP_OFFSET = {C:0,D:1,E:2,F:3,G:4,A:5,B:6};
+function naturalMidi(letter,oct){ return 36 + 12*(oct-2) + LETTER_PC[letter]; }
+function naturalStep(letter,oct){ return -4 + 7*(oct-2) + LETTER_STEP_OFFSET[letter]; }
+
+// ═══════════════════════════════════════
+// KEYS (tóniny) — 15 major keys, C + 7 sharp side + 7 flat side
+// ═══════════════════════════════════════
+const SHARP_LETTER_ORDER = ['F','C','G','D','A','E','B']; // order sharps appear in a signature
+const FLAT_LETTER_ORDER  = ['B','E','A','D','G','C','F']; // mirror order for flats
+// Verified bass-clef key-signature glyph positions (step, same units as note step)
+const SHARP_ORDER = [{letter:'F',step:6},{letter:'C',step:3},{letter:'G',step:7},
+                      {letter:'D',step:4},{letter:'A',step:1},{letter:'E',step:5},
+                      {letter:'B',step:2}];
+const FLAT_ORDER  = [{letter:'B',step:2},{letter:'E',step:5},{letter:'A',step:1},
+                      {letter:'D',step:4},{letter:'G',step:0},{letter:'C',step:3},
+                      {letter:'F',step:-1}];
+
+const KEYS = [
+ {name:'C dur',    acc:0, type:'sharp'},
+ {name:'G dur',    acc:1, type:'sharp'},
+ {name:'D dur',    acc:2, type:'sharp'},
+ {name:'A dur',    acc:3, type:'sharp'},
+ {name:'E dur',    acc:4, type:'sharp'},
+ {name:'H dur',    acc:5, type:'sharp'},
+ {name:'Fis dur',  acc:6, type:'sharp'},
+ {name:'Cis dur',  acc:7, type:'sharp'},
+ {name:'F dur',    acc:1, type:'flat'},
+ {name:'B dur',    acc:2, type:'flat'},
+ {name:'Es dur',   acc:3, type:'flat'},
+ {name:'As dur',   acc:4, type:'flat'},
+ {name:'Des dur',  acc:5, type:'flat'},
+ {name:'Ges dur',  acc:6, type:'flat'},
+ {name:'Ces dur',  acc:7, type:'flat'},
+];
+// For every key, precompute: per-letter alteration, a pitch-class -> {letter,alteration}
+// lookup (used to write a drawn note), and the Set of the 7 pitch classes in the scale
+// (used to filter which cards may be drawn). A major scale always yields exactly 7
+// distinct pitch classes, so pcToLetter is unambiguous (see plan's proof).
+KEYS.forEach(key=>{
+  const order = key.type==='sharp' ? SHARP_LETTER_ORDER : FLAT_LETTER_ORDER;
+  const delta = key.type==='sharp' ? 1 : -1;
+  const letterAlt = {C:0,D:0,E:0,F:0,G:0,A:0,B:0};
+  for(let i=0;i<key.acc;i++) letterAlt[order[i]] = delta;
+  const pcToLetter = {};
+  Object.keys(letterAlt).forEach(letter=>{
+    const pc = ((LETTER_PC[letter]+letterAlt[letter])%12+12)%12;
+    pcToLetter[pc] = {letter, alteration:letterAlt[letter]};
   });
-})();
+  key.letterAlt  = letterAlt;
+  key.pcToLetter = pcToLetter;
+  key.scale      = new Set(Object.keys(pcToLetter).map(Number));
+});
 
 // ═══════════════════════════════════════
 // SETTINGS STATE
 // ═══════════════════════════════════════
 let activePositions = new Set([1]);
+let activeKeys = new Set([0]);            // indexes into KEYS; default = C dur only
+let selectedKeyDiff = { row:0, col:0 };   // {row,col} into KEY_ROWS, like selectedDiff; null = custom
+let currentKey = 0;                       // tónina resolved once per round, in startGame()
 let chosenSpeed = 35;
 let isStaticMode = false;
 const chosenDuration = 45;
@@ -339,6 +416,48 @@ function dotsHtml(indices){
     const c = POSITIONS[pi].color || '#888580';
     return `<div class="diff-dot" style="background:${c}"></div>`;
   }).join('');
+}
+
+// ═══════════════════════════════════════
+// KEY (tónina) PRESETS — rows by accidental count, 2 keys/row + cumulative
+// ═══════════════════════════════════════
+// KEYS indices: C=0, G=1,D=2,A=3,E=4,H=5,Fis=6,Cis=7 (sharp side), F=8,B=9,Es=10,As=11,Des=12,Ges=13,Ces=14 (flat side)
+const KEY_ROWS = [
+  { acc:0, sharp:0, flat:null },
+  { acc:1, sharp:1, flat:8  },
+  { acc:2, sharp:2, flat:9  },
+  { acc:3, sharp:3, flat:10 },
+  { acc:4, sharp:4, flat:11 },
+  { acc:5, sharp:5, flat:12 },
+  { acc:6, sharp:6, flat:13 },
+  { acc:7, sharp:7, flat:14 },
+];
+
+function keyBadge(key){ return key.acc===0 ? '0' : key.acc+(key.type==='sharp'?'♯':'♭'); }
+
+// col: 0=sharp solo, 1=flat solo, 2=cumulative (both sides, this row's acc and lower); null=custom
+function setKeyPreset(row, col){
+  selectedKeyDiff = { row, col };
+  const r = KEY_ROWS[row];
+  if(col===0) activeKeys = new Set([r.sharp]);
+  else if(col===1) activeKeys = new Set([r.flat]);
+  else activeKeys = new Set(cumulativeKeysUpTo(r.acc));
+  document.querySelectorAll('.key-item').forEach(el=>
+    el.classList.toggle('on', el.dataset.row==row && el.dataset.col==col)
+  );
+}
+
+function cumulativeKeysUpTo(acc){
+  const s=[0]; // C dur is always included ("this row's acc and lower")
+  KEY_ROWS.forEach(r=>{
+    if(r.acc>0 && r.acc<=acc){ s.push(r.sharp); if(r.flat!==null) s.push(r.flat); }
+  });
+  return s;
+}
+
+function resolveCurrentKey(){
+  const keys=[...activeKeys];
+  currentKey = keys.length===1 ? keys[0] : keys[Math.floor(Math.random()*keys.length)];
 }
 
 // ═══════════════════════════════════════
@@ -405,6 +524,88 @@ function dotsHtml(indices){
     selectedDiff = null;
     document.querySelectorAll('.diff-item').forEach(el=>el.classList.remove('on'));
     document.getElementById('modal-overlay').classList.remove('open');
+  });
+
+  // Key (tónina) grid
+  const keyGrid = document.getElementById('key-grid');
+  function makeKeyItem(row, col, keyIndex){
+    const key = KEYS[keyIndex];
+    const div = document.createElement('div');
+    div.className = 'diff-item key-item';
+    div.dataset.row = row; div.dataset.col = col;
+    if(selectedKeyDiff && row===selectedKeyDiff.row && col===selectedKeyDiff.col) div.classList.add('on');
+    div.innerHTML = `
+      <div class="diff-radio"></div>
+      <div class="diff-info">
+        <div class="diff-name">${key.name}</div>
+        <div class="diff-dots"><span class="key-badge">${keyBadge(key)}</span></div>
+      </div>`;
+    div.addEventListener('click',()=>setKeyPreset(row, col));
+    return div;
+  }
+  KEY_ROWS.forEach((r,ri)=>{
+    if(r.flat===null){
+      const div = makeKeyItem(ri, 0, r.sharp);
+      div.style.gridColumn = 'span 3'; // C dur has no flat/sharp split and no lower row
+      keyGrid.appendChild(div);
+      return;
+    }
+    keyGrid.appendChild(makeKeyItem(ri, 0, r.sharp));
+    keyGrid.appendChild(makeKeyItem(ri, 1, r.flat));
+    const cumDiv = document.createElement('div');
+    cumDiv.className = 'diff-item key-item';
+    cumDiv.dataset.row = ri; cumDiv.dataset.col = 2;
+    if(selectedKeyDiff && ri===selectedKeyDiff.row && selectedKeyDiff.col===2) cumDiv.classList.add('on');
+    const posLabel = r.acc===1 ? '1 posuvka a méně' : (r.acc<5 ? r.acc+' posuvky a méně' : r.acc+' posuvek a méně');
+    cumDiv.innerHTML = `
+      <div class="diff-radio"></div>
+      <div class="diff-info">
+        <div class="diff-name">${posLabel}</div>
+        <div class="diff-dots"><span class="key-badge">${r.acc}♯ + ${r.acc}♭</span></div>
+      </div>`;
+    cumDiv.addEventListener('click',()=>setKeyPreset(ri, 2));
+    keyGrid.appendChild(cumDiv);
+  });
+
+  // Custom keys modal
+  const modalKeyGrid = document.getElementById('modal-key-grid');
+  let modalKeyTemp = new Set(activeKeys);
+  KEYS.forEach((k,i)=>{
+    const div = document.createElement('div');
+    div.className = 'modal-pos-item'+(modalKeyTemp.has(i)?' on':'');
+    div.style.setProperty('--c', '#4A90D9');
+    div.innerHTML = `
+      <div class="modal-pos-dot" style="background:#4A90D9"></div>
+      <span class="modal-pos-label">${k.name} <span style="opacity:.6">(${keyBadge(k)})</span></span>
+      <div class="modal-pos-check">${modalKeyTemp.has(i)?'✓':''}</div>`;
+    div.addEventListener('click',()=>{
+      if(modalKeyTemp.has(i)){ if(modalKeyTemp.size===1)return; modalKeyTemp.delete(i); }
+      else modalKeyTemp.add(i);
+      const on=modalKeyTemp.has(i);
+      div.classList.toggle('on',on);
+      div.querySelector('.modal-pos-check').textContent=on?'✓':'';
+    });
+    modalKeyGrid.appendChild(div);
+  });
+
+  document.getElementById('custom-key-btn').addEventListener('click',()=>{
+    modalKeyTemp = new Set(activeKeys);
+    document.querySelectorAll('#modal-key-grid .modal-pos-item').forEach((el,i)=>{
+      const on=modalKeyTemp.has(i); el.classList.toggle('on',on);
+      el.querySelector('.modal-pos-check').textContent=on?'✓':'';
+    });
+    document.getElementById('modal-overlay-keys').classList.add('open');
+  });
+  document.getElementById('modal-key-cancel').addEventListener('click',()=>
+    document.getElementById('modal-overlay-keys').classList.remove('open'));
+  document.getElementById('modal-overlay-keys').addEventListener('click',e=>{
+    if(e.target===e.currentTarget) document.getElementById('modal-overlay-keys').classList.remove('open');
+  });
+  document.getElementById('modal-key-ok').addEventListener('click',()=>{
+    activeKeys = new Set(modalKeyTemp);
+    selectedKeyDiff = null;
+    document.querySelectorAll('.key-item').forEach(el=>el.classList.remove('on'));
+    document.getElementById('modal-overlay-keys').classList.remove('open');
   });
 
   // Speed / duration
@@ -480,7 +681,7 @@ const CANVAS_H    = 130;
 const LINE_GAP_G  = 10;
 const BOTTOM_LINE_G = 92;
 const LEFT_MARGIN = 64;
-const LINE_X      = LEFT_MARGIN + 34;
+const LINE_X      = LEFT_MARGIN + 86; // extra room vs. the old +34 to fit up to 7 key-signature glyphs
 const STATIC_QUEUE = 4; // upcoming notes shown after the pending one in Statická mode
 
 function staticSlotX(i){
@@ -502,7 +703,13 @@ const canvas = document.getElementById('game-canvas');
 const ctx    = canvas.getContext('2d');
 
 function shuffle(arr){const a=[...arr];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
-function cardsForActive(){ return ALL_CARDS.filter(c=>activePositions.has(c.posIndex)); }
+// Diatonic pool: only cards whose pitch class belongs to currentKey's scale.
+// card.midi/finger/string/posIndex themselves are never touched — only which
+// subset of ALL_CARDS may be drawn from is narrowed.
+function cardsForActiveAndKey(){
+  const scale = KEYS[currentKey].scale;
+  return ALL_CARDS.filter(c=>activePositions.has(c.posIndex) && scale.has(((c.midi%12)+12)%12));
+}
 function stepToY(step){ return BOTTOM_LINE_G - step*(LINE_GAP_G/2); }
 
 function gameResizeCanvas(){
@@ -510,10 +717,15 @@ function gameResizeCanvas(){
 }
 
 function spawnNote(x){
-  const pool = cardsForActive();
+  const pool = cardsForActiveAndKey();
+  if(pool.length===0) return null; // no diatonic card available for the active positions/key (shouldn't happen, see plan)
   const card = pool[Math.floor(Math.random()*pool.length)];
-  const info = STAFF_MAP[card.midi]; if(!info) return null;
-  return { card, step:info.step, acc:info.acc, x:x!==undefined?x:canvas.width+20, state:'active', bounceT:0, fadeAlpha:1 };
+  const pc = ((card.midi%12)+12)%12;
+  const info = KEYS[currentKey].pcToLetter[pc];
+  if(!info) return null; // defensive: can't happen for a card drawn from the diatonic pool above
+  const oct  = 2 + (card.midi - info.alteration - 36 - LETTER_PC[info.letter]) / 12;
+  const step = naturalStep(info.letter, oct);
+  return { card, step, x:x!==undefined?x:canvas.width+20, state:'active', bounceT:0, fadeAlpha:1 };
 }
 
 function spawnParticle(x, y, points, good){
@@ -640,6 +852,9 @@ function playWrongSfx(){
 function startGame(){
   showScreen('game');
   gameResizeCanvas();
+  resolveCurrentKey(); // chosen once for the whole round, before any spawnNote() call
+  const keyLabelEl = document.getElementById('g-key-label');
+  if(keyLabelEl) keyLabelEl.textContent = 'Tónina: '+KEYS[currentKey].name;
   gameNotes=[]; gameParticles=[]; pendingNote=null;
   gScore=0; gTotal=0; gCorrect=0; gStreak=0;
   timeLeft=chosenDuration; totalDuration=chosenDuration;
@@ -747,6 +962,19 @@ function gameLoop(ts){
   gameRAF=requestAnimationFrame(gameLoop);
 }
 
+function drawKeySignature(){
+  const key = KEYS[currentKey];
+  if(key.acc===0) return; // C dur: no glyphs, just the clef
+  const order  = key.type==='sharp' ? SHARP_ORDER : FLAT_ORDER;
+  const glyph  = key.type==='sharp' ? '♯' : '♭';
+  const startX = LEFT_MARGIN + 12, spacing = 9;
+  ctx.font='16px serif'; ctx.fillStyle='#3a3836'; ctx.textBaseline='middle';
+  for(let i=0;i<key.acc;i++){
+    ctx.fillText(glyph, startX + i*spacing, stepToY(order[i].step));
+  }
+  ctx.textBaseline='alphabetic';
+}
+
 function drawFrame(){
   ctx.clearRect(0,0,canvas.width,CANVAS_H);
 
@@ -767,6 +995,9 @@ function drawFrame(){
   ctx.font=`${LINE_GAP_G*5}px Bravura, serif`;
   ctx.fillStyle='#3a3836'; ctx.textBaseline='alphabetic';
   ctx.fillText('\uE062',6,BOTTOM_LINE_G-3*LINE_GAP_G);
+
+  // Key signature (always drawn, even for C dur where it's simply empty)
+  drawKeySignature();
 
   // Notes
   gameNotes.forEach(drawNote);
@@ -799,11 +1030,10 @@ function drawNote(n){
     const ly=stepToY(s); ctx.beginPath(); ctx.moveTo(x-noteW-3,ly); ctx.lineTo(x+noteW+3,ly); ctx.stroke();
   }
 
-  // Accidental
-  if(n.acc===1){
-    ctx.font='16px serif'; ctx.fillStyle='#3a3836'; ctx.textBaseline='middle';
-    ctx.fillText('♯',x-noteW-16,baseY);
-  }
+  // No per-note accidental: the game is purely diatonic to currentKey, so every drawn
+  // note's alteration is always exactly the one already shown in the key signature at
+  // the clef (drawKeySignature). If a chromatic/non-diatonic mode is reintroduced later,
+  // this is where a ♯/♭/♮ next to the note head would need to come back.
 
   // Position colour halo
   const pos=POSITIONS[n.card.posIndex];
