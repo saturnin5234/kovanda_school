@@ -1341,7 +1341,7 @@ function gameAnswerNote(pc){
 
 // Keyboard
 document.addEventListener('keydown',e=>{
-  if(['1','2','3','4'].includes(e.key)) gameAnswer(parseInt(e.key));
+  if(gameMode==='cello' && ['1','2','3','4'].includes(e.key)) gameAnswer(parseInt(e.key));
 });
 
 window.addEventListener('resize',()=>{ if(gameRunning) gameResizeCanvas(); });
