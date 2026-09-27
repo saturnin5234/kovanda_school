@@ -67,6 +67,12 @@
   .speed-btn:hover { background:#2a2724; color:#c8c4bc; }
   .speed-btn.on { background:#2c2c2a; border-color:#888580; color:#f0ede6; }
 
+  /* Clef (klíč) selector - same visual language as Speed */
+  .clef-btns { display:flex; gap:8px; flex-wrap:wrap; }
+  .clef-btn { flex:1; min-width:calc(50% - 4px); padding:10px 0; border-radius:10px; border:1.5px solid #3a3734; background:#1e1c1a; color:#888580; font-size:13px; font-weight:600; cursor:pointer; font-family:'Source Sans 3',sans-serif; transition:all .15s; }
+  .clef-btn:hover { background:#2a2724; color:#c8c4bc; }
+  .clef-btn.on { background:#2c2c2a; border-color:#888580; color:#f0ede6; }
+
   .play-btn { display:block; width:100%; padding:16px; border-radius:14px; border:none; background:#4A90D9; color:#fff; font-size:18px; font-weight:700; cursor:pointer; font-family:'Source Sans 3',sans-serif; transition:opacity .15s, transform .1s; margin-top:.5rem; letter-spacing:.02em; }
   .play-btn:hover { opacity:.9; }
   .play-btn:active { transform:scale(.98); }
@@ -91,6 +97,13 @@
   .finger-btn:hover { border-color:#666360; background:#2e2b28; }
   .finger-btn.flash-ok  { background:#1D9E75; border-color:#1D9E75; color:#fff; }
   .finger-btn.flash-bad { background:#E24B4A; border-color:#E24B4A; color:#fff; }
+
+  /* Note-name buttons (Čtení not mode) - like finger-btn, smaller to fit 12 */
+  .note-btns { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:1rem; }
+  .note-btn { padding:12px 0; border-radius:12px; border:2px solid #3a3734; background:#252320; color:#f0ede6; font-size:15px; font-weight:700; cursor:pointer; font-family:'Lora',serif; transition:background .1s, border-color .1s; }
+  .note-btn:hover { border-color:#666360; background:#2e2b28; }
+  .note-btn.flash-ok  { background:#1D9E75; border-color:#1D9E75; color:#fff; }
+  .note-btn.flash-bad { background:#E24B4A; border-color:#E24B4A; color:#fff; }
 
   .quit-btn { display:block; margin:0 auto; background:none; border:none; color:#555250; font-size:13px; cursor:pointer; font-family:'Source Sans 3',sans-serif; padding:4px 12px; }
   .quit-btn:hover { color:#888580; }
@@ -145,13 +158,14 @@
     <div class="title-pos-dot" style="background:#D97B0A"></div>
     <div class="title-pos-dot" style="background:#A01850"></div>
   </div>
-  <button class="title-start-btn" id="title-start-btn">▶ HRÁT</button>
+  <button class="title-start-btn" id="title-start-btn-cello">▶ HRÁT (Cello)</button>
+  <button class="title-start-btn" id="title-start-btn-notes">▶ HRÁT (Čtení not)</button>
   <p class="title-credit">Game by Oskar Sedlák &nbsp;·&nbsp; Music by Matěj Kovanda</p>
 </div>
 <div class="screen" id="screen-home">
   <h1 class="home-title">🎻 Kovanda School<br><span style="font-size:0.7em;font-weight:400;opacity:0.7">The Game</span></h1>
 
-  <div class="setup-card">
+  <div class="setup-card" id="position-card">
     <h2>Poloha</h2>
     <div class="diff-header">
       <div class="diff-col-label">Jen tato poloha</div>
@@ -170,6 +184,16 @@
     </div>
     <div class="key-grid" id="key-grid"></div>
     <button class="diff-custom-btn" id="custom-key-btn">⚙ Vlastní výběr tónin…</button>
+  </div>
+
+  <div class="setup-card" id="clef-card" style="display:none">
+    <h2>Klíč</h2>
+    <div class="clef-btns" id="clef-grid">
+      <button class="clef-btn on" data-clef="treble">Houslový</button>
+      <button class="clef-btn" data-clef="bass">Basový</button>
+      <button class="clef-btn" data-clef="alto">Altový</button>
+      <button class="clef-btn" data-clef="tenor">Tenorový</button>
+    </div>
   </div>
 
   <div class="setup-card">
@@ -259,6 +283,21 @@
     <button class="finger-btn" data-finger="2">2</button>
     <button class="finger-btn" data-finger="3">3</button>
     <button class="finger-btn" data-finger="4">4</button>
+  </div>
+
+  <div class="note-btns" id="note-btns" style="display:none">
+    <button class="note-btn" data-pc="0"></button>
+    <button class="note-btn" data-pc="1"></button>
+    <button class="note-btn" data-pc="2"></button>
+    <button class="note-btn" data-pc="3"></button>
+    <button class="note-btn" data-pc="4"></button>
+    <button class="note-btn" data-pc="5"></button>
+    <button class="note-btn" data-pc="6"></button>
+    <button class="note-btn" data-pc="7"></button>
+    <button class="note-btn" data-pc="8"></button>
+    <button class="note-btn" data-pc="9"></button>
+    <button class="note-btn" data-pc="10"></button>
+    <button class="note-btn" data-pc="11"></button>
   </div>
 
   <button class="quit-btn" id="quit-btn">Ukončit hru</button>
@@ -373,6 +412,62 @@ KEYS.forEach(key=>{
 });
 
 // ═══════════════════════════════════════
+// CLEFS (Čtení not mód) — verified key-signature glyph positions per clef
+// ═══════════════════════════════════════
+const CLEFS = [
+  { id:'treble', name:'Houslový', clefOffset:12, glyph:'', glyphAnchorStep:2,
+    sharpOrder:[{letter:'F',step:8},{letter:'C',step:5},{letter:'G',step:9},{letter:'D',step:6},
+                {letter:'A',step:3},{letter:'E',step:7},{letter:'B',step:4}],
+    flatOrder :[{letter:'B',step:4},{letter:'E',step:7},{letter:'A',step:3},{letter:'D',step:6},
+                {letter:'G',step:2},{letter:'C',step:5},{letter:'F',step:1}],
+    rangeMin:57, rangeMax:84 },
+  { id:'bass', name:'Basový', clefOffset:0, glyph:'', glyphAnchorStep:6,
+    sharpOrder:SHARP_ORDER, flatOrder:FLAT_ORDER,
+    rangeMin:36, rangeMax:64 },
+  { id:'alto', name:'Altový', clefOffset:6, glyph:'', glyphAnchorStep:4,
+    sharpOrder:[{letter:'F',step:7},{letter:'C',step:4},{letter:'G',step:8},{letter:'D',step:5},
+                {letter:'A',step:2},{letter:'E',step:6},{letter:'B',step:3}],
+    flatOrder :[{letter:'B',step:3},{letter:'E',step:6},{letter:'A',step:2},{letter:'D',step:5},
+                {letter:'G',step:1},{letter:'C',step:4},{letter:'F',step:0}],
+    rangeMin:48, rangeMax:74 },
+  { id:'tenor', name:'Tenorový', clefOffset:4, glyph:'', glyphAnchorStep:6,
+    sharpOrder:[{letter:'F',step:2},{letter:'C',step:6},{letter:'G',step:3},{letter:'D',step:7},
+                {letter:'A',step:4},{letter:'E',step:8},{letter:'B',step:5}],
+    flatOrder :[{letter:'B',step:5},{letter:'E',step:8},{letter:'A',step:4},{letter:'D',step:7},
+                {letter:'G',step:3},{letter:'C',step:6},{letter:'F',step:1}],
+    rangeMin:45, rangeMax:72 },
+];
+let selectedClef = 'treble'; // default
+
+// ═══════════════════════════════════════
+// NOTE SPELLING (Čtení not mód) — chromatic pitch-class -> Czech note name
+// ═══════════════════════════════════════
+function naturalPcToLetter(pc){
+  return Object.keys(LETTER_PC).find(l => LETTER_PC[l] === pc); // undefined for pc∈{1,3,6,8,10}
+}
+function chromaticSpelling(key, pc){
+  const natural = naturalPcToLetter(pc);
+  if(natural) return { letter: natural, alteration: 0 };
+  if(key.type === 'sharp') return { letter: naturalPcToLetter((pc - 1 + 12) % 12), alteration: 1 };
+  return { letter: naturalPcToLetter((pc + 1) % 12), alteration: -1 };
+}
+function spellPitchClass(key, pc){
+  const diatonic = key.pcToLetter[pc];
+  if(diatonic) return { letter: diatonic.letter, alteration: diatonic.alteration, accidental: null };
+  const s = chromaticSpelling(key, pc);
+  const accidental = s.alteration === 0 ? '♮' : (s.alteration === 1 ? '♯' : '♭');
+  return { letter: s.letter, alteration: s.alteration, accidental };
+}
+function spellingToName(letter, alteration){
+  if(alteration === 0) return letter === 'B' ? 'H' : letter;
+  if(alteration === 1) return letter === 'B' ? 'His' : letter + 'is';
+  if(letter === 'B') return 'B';
+  if(letter === 'E') return 'Es';
+  if(letter === 'A') return 'As';
+  return letter + 'es';
+}
+
+// ═══════════════════════════════════════
 // SETTINGS STATE
 // ═══════════════════════════════════════
 let activePositions = new Set([1]);
@@ -382,7 +477,12 @@ let currentKey = 0;                       // tónina resolved once per round, in
 let chosenSpeed = 35;
 let isStaticMode = false;
 const chosenDuration = 45;
-let bestScore = parseInt(localStorage.getItem('cello_best')||'0');
+let gameMode = 'cello'; // 'cello' | 'notes' — set by the title screen's two start buttons
+let bestScoreCello = parseInt(localStorage.getItem('cello_best')||'0');
+let bestScoreNotes = parseInt(localStorage.getItem('notes_best')||'0');
+function currentBestKey(){ return gameMode==='cello' ? 'cello_best' : 'notes_best'; }
+function getBestScore(){ return gameMode==='cello' ? bestScoreCello : bestScoreNotes; }
+function setBestScore(v){ if(gameMode==='cello') bestScoreCello=v; else bestScoreNotes=v; }
 
 // ═══════════════════════════════════════
 // ═══════════════════════════════════════
@@ -622,6 +722,16 @@ function resolveCurrentKey(){
   document.getElementById('play-again-btn').addEventListener('click', ()=>startGame());
   document.getElementById('home-btn').addEventListener('click', ()=>showScreen('home'));
   document.querySelectorAll('.finger-btn').forEach(b=>b.addEventListener('click',()=>gameAnswer(parseInt(b.dataset.finger))));
+
+  // Clef (klíč) selector — Čtení not mode only
+  document.querySelectorAll('.clef-btn').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      document.querySelectorAll('.clef-btn').forEach(x=>x.classList.remove('on'));
+      b.classList.add('on');
+      selectedClef = b.dataset.clef;
+    });
+  });
+  document.querySelectorAll('.note-btn').forEach(b=>b.addEventListener('click', ()=>gameAnswerNote(parseInt(b.dataset.pc))));
 })();
 
 
@@ -668,8 +778,22 @@ function showScreen(name){
   else stopAmbient();
 }
 
-// Title screen button
-document.getElementById('title-start-btn').addEventListener('click', ()=>{
+// Title screen buttons — pick the game mode, then go to the home/setup screen
+function applyGameModeToHome(){
+  document.getElementById('position-card').style.display = gameMode==='cello' ? '' : 'none';
+  document.getElementById('clef-card').style.display     = gameMode==='cello' ? 'none' : '';
+  document.querySelector('.finger-btns').style.display   = gameMode==='cello' ? '' : 'none';
+  document.getElementById('note-btns').style.display     = gameMode==='cello' ? 'none' : '';
+  const celloImg = document.querySelector('#screen-game img[alt="Cello"]');
+  if(celloImg) celloImg.style.display = gameMode==='cello' ? '' : 'none';
+}
+document.getElementById('title-start-btn-cello').addEventListener('click', ()=>{
+  gameMode = 'cello'; applyGameModeToHome();
+  startAmbient(); // first interaction – unlocks audio
+  showScreen('home');
+});
+document.getElementById('title-start-btn-notes').addEventListener('click', ()=>{
+  gameMode = 'notes'; applyGameModeToHome();
   startAmbient(); // first interaction – unlocks audio
   showScreen('home');
 });
@@ -726,6 +850,27 @@ function spawnNote(x){
   const oct  = 2 + (card.midi - info.alteration - 36 - LETTER_PC[info.letter]) / 12;
   const step = naturalStep(info.letter, oct);
   return { card, step, x:x!==undefined?x:canvas.width+20, state:'active', bounceT:0, fadeAlpha:1 };
+}
+
+// Chromatic pool for the "Čtení not" mode: every MIDI pitch in the chosen clef's range,
+// unlike the cello mode's diatonic-only cardsForActiveAndKey().
+function cardsForClef(clefDef){
+  const c = [];
+  for(let m = clefDef.rangeMin; m <= clefDef.rangeMax; m++) c.push({ midi: m });
+  return c;
+}
+
+function spawnNoteReading(x){
+  const clefDef = CLEFS.find(c => c.id === selectedClef);
+  const pool = cardsForClef(clefDef);
+  if(pool.length === 0) return null;
+  const card = pool[Math.floor(Math.random() * pool.length)];
+  const pc = ((card.midi % 12) + 12) % 12;
+  const spelled = spellPitchClass(KEYS[currentKey], pc);
+  const oct  = 2 + (card.midi - spelled.alteration - 36 - LETTER_PC[spelled.letter]) / 12;
+  const step = naturalStep(spelled.letter, oct) - clefDef.clefOffset;
+  return { card, step, pc, accidental: spelled.accidental,
+           x: x !== undefined ? x : canvas.width + 20, state:'active', bounceT:0, fadeAlpha:1 };
 }
 
 function spawnParticle(x, y, points, good){
@@ -855,12 +1000,14 @@ function startGame(){
   resolveCurrentKey(); // chosen once for the whole round, before any spawnNote() call
   const keyLabelEl = document.getElementById('g-key-label');
   if(keyLabelEl) keyLabelEl.textContent = 'Tónina: '+KEYS[currentKey].name;
+  if(gameMode==='notes') refreshNoteButtonLabels();
   gameNotes=[]; gameParticles=[]; pendingNote=null;
   gScore=0; gTotal=0; gCorrect=0; gStreak=0;
   timeLeft=chosenDuration; totalDuration=chosenDuration;
   if(isStaticMode){
     for(let i=0;i<=STATIC_QUEUE;i++){
-      const n=spawnNote(staticSlotX(i)); if(n){ n.targetX=n.x; gameNotes.push(n); }
+      const n=gameMode==='cello' ? spawnNote(staticSlotX(i)) : spawnNoteReading(staticSlotX(i));
+      if(n){ n.targetX=n.x; gameNotes.push(n); }
     }
   }
   updateGameUI();
@@ -876,7 +1023,7 @@ function endGame(quit=false){
   stopMusic();
 
   // Save best
-  if(gScore > bestScore && !quit){ bestScore=gScore; localStorage.setItem('cello_best',gScore); }
+  if(gScore > getBestScore() && !quit){ setBestScore(gScore); localStorage.setItem(currentBestKey(),gScore); }
 
   // Results
   document.getElementById('res-title').textContent = quit ? 'Hra ukončena' : '⏱ Čas vypršel!';
@@ -886,7 +1033,7 @@ function endGame(quit=false){
   document.getElementById('res-total').textContent  = gTotal;
   document.getElementById('res-acc').textContent    = gTotal>0?Math.round(gCorrect/gTotal*100)+'%':'–';
   const bestEl=document.getElementById('res-best');
-  if(gScore>0 && gScore>=bestScore && !quit){
+  if(gScore>0 && gScore>=getBestScore() && !quit){
     bestEl.style.display=''; document.getElementById('res-best-val').textContent=gScore+' bodů';
   } else bestEl.style.display='none';
   showScreen('results');
@@ -953,7 +1100,7 @@ function gameLoop(ts){
     const active=gameNotes.filter(n=>n.state==='active'||n.state==='correct'||n.state==='wrong');
     const rightmost=active.length?Math.max(...active.map(n=>n.x)):0;
     if(active.length<6&&(active.length===0||rightmost<canvas.width-canvas.width*0.18)){
-      const n=spawnNote(); if(n) gameNotes.push(n);
+      const n=gameMode==='cello' ? spawnNote() : spawnNoteReading(); if(n) gameNotes.push(n);
     }
   }
 
@@ -975,6 +1122,19 @@ function drawKeySignature(){
   ctx.textBaseline='alphabetic';
 }
 
+// Parallel to drawKeySignature() above, but generic over any of the 4 CLEFS (used by
+// the "Čtení not" mode instead of the cello mode's fixed bass clef).
+function drawKeySignatureForClef(clefDef){
+  const key = KEYS[currentKey];
+  if(key.acc === 0) return;
+  const order = key.type === 'sharp' ? clefDef.sharpOrder : clefDef.flatOrder;
+  const glyph = key.type === 'sharp' ? '♯' : '♭';
+  const startX = LEFT_MARGIN + 12, spacing = 9;
+  ctx.font = '16px serif'; ctx.fillStyle = '#3a3836'; ctx.textBaseline = 'middle';
+  for(let i = 0; i < key.acc; i++) ctx.fillText(glyph, startX + i*spacing, stepToY(order[i].step));
+  ctx.textBaseline = 'alphabetic';
+}
+
 function drawFrame(){
   ctx.clearRect(0,0,canvas.width,CANVAS_H);
 
@@ -991,13 +1151,22 @@ function drawFrame(){
   ctx.beginPath(); ctx.moveTo(LINE_X,6); ctx.lineTo(LINE_X,CANVAS_H-6); ctx.stroke();
   ctx.setLineDash([]);
 
-  // Bass clef
-  ctx.font=`${LINE_GAP_G*5}px Bravura, serif`;
-  ctx.fillStyle='#3a3836'; ctx.textBaseline='alphabetic';
-  ctx.fillText('\uE062',6,BOTTOM_LINE_G-3*LINE_GAP_G);
+  if(gameMode==='cello'){
+    // Bass clef
+    ctx.font=`${LINE_GAP_G*5}px Bravura, serif`;
+    ctx.fillStyle='#3a3836'; ctx.textBaseline='alphabetic';
+    ctx.fillText('\uE062',6,BOTTOM_LINE_G-3*LINE_GAP_G);
 
-  // Key signature (always drawn, even for C dur where it's simply empty)
-  drawKeySignature();
+    // Key signature (always drawn, even for C dur where it's simply empty)
+    drawKeySignature();
+  } else {
+    const clefDef = CLEFS.find(c=>c.id===selectedClef);
+    ctx.font=`${LINE_GAP_G*5}px Bravura, serif`;
+    ctx.fillStyle='#3a3836'; ctx.textBaseline='alphabetic';
+    ctx.fillText(clefDef.glyph,6,stepToY(clefDef.glyphAnchorStep));
+
+    drawKeySignatureForClef(clefDef);
+  }
 
   // Notes
   gameNotes.forEach(drawNote);
@@ -1030,14 +1199,19 @@ function drawNote(n){
     const ly=stepToY(s); ctx.beginPath(); ctx.moveTo(x-noteW-3,ly); ctx.lineTo(x+noteW+3,ly); ctx.stroke();
   }
 
-  // No per-note accidental: the game is purely diatonic to currentKey, so every drawn
-  // note's alteration is always exactly the one already shown in the key signature at
-  // the clef (drawKeySignature). If a chromatic/non-diatonic mode is reintroduced later,
-  // this is where a ♯/♭/♮ next to the note head would need to come back.
+  // Cello mode is purely diatonic to currentKey, so every drawn note's alteration is
+  // always exactly the one already shown in the key signature — no per-note accidental.
+  // The "Čtení not" mode is chromatic, so its notes carry n.accidental (♯/♭/♮).
+  if(n.accidental){
+    ctx.font = '14px serif'; ctx.fillStyle = '#3a3836';
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    ctx.fillText(n.accidental, x - noteW - 6, baseY);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  }
 
-  // Position colour halo
-  const pos=POSITIONS[n.card.posIndex];
-  if(pos.color){
+  // Position colour halo (cello mode only — n.card.posIndex is undefined in "Čtení not")
+  const pos = n.card.posIndex !== undefined ? POSITIONS[n.card.posIndex] : null;
+  if(pos && pos.color){
     ctx.save(); ctx.translate(x,baseY); ctx.rotate(-0.26);
     ctx.globalAlpha=n.fadeAlpha*0.35; ctx.fillStyle=pos.color;
     ctx.beginPath(); ctx.ellipse(0,0,noteW*3.2,noteH*3.2,0,0,Math.PI*2); ctx.fill();
@@ -1107,6 +1281,61 @@ function gameAnswer(finger){
     },500);
   } else {
     n._rc=setInterval(()=>{ if(n.x<LINE_X-20){ n.state='gone'; clearInterval(n._rc); } },50);
+  }
+}
+
+// ═══════════════════════════════════════
+// "Čtení not" mode — note-name answer (duplicate of gameAnswer, not a refactor)
+// ═══════════════════════════════════════
+function refreshNoteButtonLabels(){
+  const key = KEYS[currentKey];
+  document.querySelectorAll('.note-btn').forEach(b=>{
+    const pc = parseInt(b.dataset.pc);
+    const s = spellPitchClass(key, pc);
+    b.textContent = spellingToName(s.letter, s.alteration);
+  });
+}
+
+function gameAnswerNote(pc){
+  if(!gameRunning || !pendingNote) return;
+  if(pendingNote.x < LINE_X) return;
+  const n = pendingNote;
+  const ok = pc === n.pc;
+  n.state = ok ? 'correct' : 'wrong';
+  if(ok){ n.bounceT = 0.001; playCorrectSfx(); } else { playWrongSfx(); }
+  pendingNote = null;
+  gTotal++;
+  let points;
+  if(ok){ gStreak++; gCorrect++; const bonus = gStreak>=3?gStreak*2:0; points=10+bonus; gScore+=points; }
+  else  { points=5; gScore=Math.max(0,gScore-5); gStreak=0; }
+  spawnParticle(Math.round(n.x), stepToY(n.step)-18, points, ok);
+
+  // Streak badge
+  if(ok && gStreak>=3){
+    const badge=document.getElementById('streak-badge');
+    badge.textContent=`🔥 Série ${gStreak}!`;
+    badge.classList.add('show');
+    clearTimeout(badge._t);
+    badge._t=setTimeout(()=>badge.classList.remove('show'),1200);
+  }
+
+  // Flash button
+  document.querySelectorAll('.note-btn').forEach(b=>{
+    const p = parseInt(b.dataset.pc);
+    if(p===pc){ b.classList.add(ok?'flash-ok':'flash-bad'); setTimeout(()=>b.classList.remove('flash-ok','flash-bad'),280); }
+  });
+
+  if(isStaticMode){
+    setTimeout(()=>{
+      if(!gameRunning) return;
+      n.state='gone';
+      gameNotes = gameNotes.filter(x=>x!==n);
+      const remaining = gameNotes.filter(x=>x.state==='active').sort((a,b)=>a.x-b.x);
+      remaining.forEach((note,idx)=>{ note.targetX = staticSlotX(idx); });
+      const next = spawnNoteReading(staticSlotX(STATIC_QUEUE)); if(next){ next.targetX=next.x; gameNotes.push(next); }
+    }, 500);
+  } else {
+    n._rc = setInterval(()=>{ if(n.x<LINE_X-20){ n.state='gone'; clearInterval(n._rc); } }, 50);
   }
 }
 
