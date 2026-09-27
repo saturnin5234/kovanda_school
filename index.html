@@ -98,15 +98,30 @@
   .finger-btn.flash-ok  { background:#1D9E75; border-color:#1D9E75; color:#fff; }
   .finger-btn.flash-bad { background:#E24B4A; border-color:#E24B4A; color:#fff; }
 
-  /* Note-name buttons (Čtení not mode) - like finger-btn, smaller to fit 12 */
-  .note-btns { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:1rem; }
-  .note-btn { padding:12px 0; border-radius:12px; border:2px solid #3a3734; background:#252320; color:#f0ede6; font-size:15px; font-weight:700; cursor:pointer; font-family:'Lora',serif; transition:background .1s, border-color .1s; }
-  .note-btn:hover { border-color:#666360; background:#2e2b28; }
-  .note-btn.flash-ok  { background:#1D9E75; border-color:#1D9E75; color:#fff; }
-  .note-btn.flash-bad { background:#E24B4A; border-color:#E24B4A; color:#fff; }
+  /* Note-name buttons (Čtení not mode) - a piano keyboard, one key per pitch class */
+  .piano { position:relative; margin-bottom:1rem; height:120px; }
+  .piano-white-keys { display:flex; gap:2px; height:100%; }
+  .piano-white-key {
+    flex:1; background:#e8e4da; border:1px solid #3a3734; border-radius:0 0 8px 8px;
+    color:#1a1814; font-size:13px; font-weight:600; font-family:'Source Sans 3',sans-serif;
+    display:flex; align-items:flex-end; justify-content:center; padding-bottom:8px; cursor:pointer;
+  }
+  .piano-white-key:hover { background:#f5f2ea; }
+  .piano-black-key {
+    position:absolute; top:0; width:9%; height:62%; transform:translateX(-50%);
+    background:#0f0d0a; border:1px solid #000; border-radius:0 0 6px 6px; z-index:2;
+    color:#f0ede6; font-size:11px; font-weight:600; font-family:'Source Sans 3',sans-serif;
+    display:flex; align-items:flex-end; justify-content:center; padding-bottom:6px; cursor:pointer;
+  }
+  .piano-black-key:hover { background:#211d18; }
+  .note-btn.flash-ok  { background:#1D9E75 !important; color:#fff; }
+  .note-btn.flash-bad { background:#E24B4A !important; color:#fff; }
 
   .quit-btn { display:block; margin:0 auto; background:none; border:none; color:#555250; font-size:13px; cursor:pointer; font-family:'Source Sans 3',sans-serif; padding:4px 12px; }
   .quit-btn:hover { color:#888580; }
+
+  .back-to-title-btn { display:block; background:none; border:none; color:#666360; font-size:12px; cursor:pointer; font-family:'Source Sans 3',sans-serif; padding:0; margin-bottom:0.8rem; }
+  .back-to-title-btn:hover { color:#999590; }
 
   /* ── RESULTS SCREEN ── */
   .results-wrap { text-align:center; padding:1rem 0; }
@@ -163,6 +178,7 @@
   <p class="title-credit">Game by Oskar Sedlák &nbsp;·&nbsp; Music by Matěj Kovanda</p>
 </div>
 <div class="screen" id="screen-home">
+  <button class="back-to-title-btn" id="back-to-title-btn">← Zpět na výběr módu</button>
   <h1 class="home-title">🎻 Kovanda School<br><span style="font-size:0.7em;font-weight:400;opacity:0.7">The Game</span></h1>
 
   <div class="setup-card" id="position-card">
@@ -285,19 +301,21 @@
     <button class="finger-btn" data-finger="4">4</button>
   </div>
 
-  <div class="note-btns" id="note-btns" style="display:none">
-    <button class="note-btn" data-pc="0"></button>
-    <button class="note-btn" data-pc="1"></button>
-    <button class="note-btn" data-pc="2"></button>
-    <button class="note-btn" data-pc="3"></button>
-    <button class="note-btn" data-pc="4"></button>
-    <button class="note-btn" data-pc="5"></button>
-    <button class="note-btn" data-pc="6"></button>
-    <button class="note-btn" data-pc="7"></button>
-    <button class="note-btn" data-pc="8"></button>
-    <button class="note-btn" data-pc="9"></button>
-    <button class="note-btn" data-pc="10"></button>
-    <button class="note-btn" data-pc="11"></button>
+  <div class="piano" id="note-btns" style="display:none">
+    <div class="piano-white-keys">
+      <button class="note-btn piano-white-key" data-pc="0"></button>
+      <button class="note-btn piano-white-key" data-pc="2"></button>
+      <button class="note-btn piano-white-key" data-pc="4"></button>
+      <button class="note-btn piano-white-key" data-pc="5"></button>
+      <button class="note-btn piano-white-key" data-pc="7"></button>
+      <button class="note-btn piano-white-key" data-pc="9"></button>
+      <button class="note-btn piano-white-key" data-pc="11"></button>
+    </div>
+    <button class="note-btn piano-black-key" data-pc="1"  style="left:calc(100%/7*1)"></button>
+    <button class="note-btn piano-black-key" data-pc="3"  style="left:calc(100%/7*2)"></button>
+    <button class="note-btn piano-black-key" data-pc="6"  style="left:calc(100%/7*4)"></button>
+    <button class="note-btn piano-black-key" data-pc="8"  style="left:calc(100%/7*5)"></button>
+    <button class="note-btn piano-black-key" data-pc="10" style="left:calc(100%/7*6)"></button>
   </div>
 
   <button class="quit-btn" id="quit-btn">Ukončit hru</button>
@@ -732,6 +750,8 @@ function resolveCurrentKey(){
     });
   });
   document.querySelectorAll('.note-btn').forEach(b=>b.addEventListener('click', ()=>gameAnswerNote(parseInt(b.dataset.pc))));
+
+  document.getElementById('back-to-title-btn').addEventListener('click', ()=>showScreen('title'));
 })();
 
 
@@ -805,7 +825,7 @@ const CANVAS_H    = 130;
 const LINE_GAP_G  = 10;
 const BOTTOM_LINE_G = 92;
 const LEFT_MARGIN = 64;
-const LINE_X      = LEFT_MARGIN + 86; // extra room vs. the old +34 to fit up to 7 key-signature glyphs
+const LINE_X      = LEFT_MARGIN + 110; // extra room vs. the old +34/+86 to fit up to 7 bigger key-signature glyphs (bold 20px, spacing 13)
 const STATIC_QUEUE = 4; // upcoming notes shown after the pending one in Statická mode
 
 function staticSlotX(i){
@@ -1114,8 +1134,8 @@ function drawKeySignature(){
   if(key.acc===0) return; // C dur: no glyphs, just the clef
   const order  = key.type==='sharp' ? SHARP_ORDER : FLAT_ORDER;
   const glyph  = key.type==='sharp' ? '♯' : '♭';
-  const startX = LEFT_MARGIN + 12, spacing = 9;
-  ctx.font='16px serif'; ctx.fillStyle='#3a3836'; ctx.textBaseline='middle';
+  const startX = LEFT_MARGIN + 12, spacing = 13;
+  ctx.font='bold 20px serif'; ctx.fillStyle='#3a3836'; ctx.textBaseline='middle';
   for(let i=0;i<key.acc;i++){
     ctx.fillText(glyph, startX + i*spacing, stepToY(order[i].step));
   }
@@ -1129,8 +1149,8 @@ function drawKeySignatureForClef(clefDef){
   if(key.acc === 0) return;
   const order = key.type === 'sharp' ? clefDef.sharpOrder : clefDef.flatOrder;
   const glyph = key.type === 'sharp' ? '♯' : '♭';
-  const startX = LEFT_MARGIN + 12, spacing = 9;
-  ctx.font = '16px serif'; ctx.fillStyle = '#3a3836'; ctx.textBaseline = 'middle';
+  const startX = LEFT_MARGIN + 12, spacing = 13;
+  ctx.font = 'bold 20px serif'; ctx.fillStyle = '#3a3836'; ctx.textBaseline = 'middle';
   for(let i = 0; i < key.acc; i++) ctx.fillText(glyph, startX + i*spacing, stepToY(order[i].step));
   ctx.textBaseline = 'alphabetic';
 }
@@ -1203,7 +1223,7 @@ function drawNote(n){
   // always exactly the one already shown in the key signature — no per-note accidental.
   // The "Čtení not" mode is chromatic, so its notes carry n.accidental (♯/♭/♮).
   if(n.accidental){
-    ctx.font = '14px serif'; ctx.fillStyle = '#3a3836';
+    ctx.font = 'bold 20px serif'; ctx.fillStyle = '#3a3836';
     ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
     ctx.fillText(n.accidental, x - noteW - 6, baseY);
     ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
